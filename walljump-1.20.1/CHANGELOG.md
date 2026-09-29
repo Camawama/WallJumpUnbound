@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — zero and low gravity (VS Genesis, Ad Astra, Gravity Unbound)
+
+Reads Camafy 0.1.7's real local gravity (`Gravity.strength`: 0 in VS Genesis's space, Ad Astra's orbits and a zero-strength Gravity Unbound field, a sixth on the Moon).
+- **Clinging in zero gravity holds:** no slide down the wall (nothing pulls), the grip never gives out, and a fresh grip resets the wall-jump count (there is no landing to reset it). A wall is caught whichever way you drift (no "still rising" refusal).
+- **A wall jump in zero gravity pushes off the wall** along its normal, keeping your drift, instead of a vertical kick that would rise for good. Double jumps are off there, and so is the sprint boost while adrift (nothing caps it without air drag).
+- **Step assist** needs gravity: floating beside a wall no longer counts as standing on a step. Its fall-speed window shrinks with low gravity.
+- **Low gravity:** the wall slide is as fast as gravity drags it (a sixth on the Moon); on an Ad Astra planet the cling no longer climbs the wall (Ad Astra lifts you at the start of each move; `Gravity.preMoveLift` is taken back out). The catch-the-wall damage prices the fall by gravity (none in zero gravity), and the falling wind is silent while adrift.
+- Camafy 0.1.7 required.
+
 ## 1.20.1-1.2.0 (unreleased) — rotated-ship wall jumping
 
 ### 2026-09-10 pass: ship edge cases, ledge pose, config, block list, sounds, cling damage

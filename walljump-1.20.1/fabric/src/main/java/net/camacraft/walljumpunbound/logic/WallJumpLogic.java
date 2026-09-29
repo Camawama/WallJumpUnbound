@@ -5,6 +5,7 @@ import net.camacraft.walljumpunbound.compat.GravityCompat;
 import net.camacraft.walljumpunbound.compat.VSCompat;
 import net.camacraft.walljumpunbound.init.ModConfig;
 import net.camacraft.walljumpunbound.init.ModConfig.BlockListMode;
+import net.camacraft.walljumpunbound.init.ModDamageTypes;
 import net.camacraft.walljumpunbound.init.ModEnchantments;
 import net.camacraft.walljumpunbound.init.ServerConfig;
 import net.camacraft.walljumpunbound.network.message.MessageFallDistance;
@@ -22,6 +23,7 @@ import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -84,8 +86,14 @@ public class WallJumpLogic {
     private static final double LEDGE_PROBE_SIZE = 0.15;
     /** Bisection steps; six over the reach envelope lands inside a quarter pixel. */
     private static final int LEDGE_PROBE_STEPS = 6;
-    /** How far the player may turn from their grip before letting go, in degrees. */
+    /** How far the player may face from a held ledge before letting go, in degrees. */
     private static final float LEDGE_RELEASE_YAW = 90.0F;
+    /**
+     * How much further away a player who took hold already facing past that
+     * may still turn before letting go: room for the hands to give, and for a
+     * wobble of the mouse, without the grip being read as given up.
+     */
+    private static final float LEDGE_RELEASE_SLACK = 15.0F;
     /** A face lying within 60 degrees of level can be stood on; steeper is a wall. */
     private static final double FLOOR_COS = 0.5;
     /** How far below the feet ground has to be for a cling to be worth starting. */
@@ -98,14 +106,12 @@ public class WallJumpLogic {
     public static boolean stopSlid = false;
     public static int wallJumpCount;
     private static int ticksKeyDown;
-    private static float clingYaw;
     private static int lastHurtTime;
     private static Vec3 lastPos;
     private static double clingFall;
     private static Vec3 lastShipHold;
     private static Vec3 heldPos;
     private static Vec3 shipCarry = Vec3.ZERO;
-    private static Double lastShipYaw;
     private static Vec3 drift = Vec3.ZERO;
     private static boolean clingSent;
     private static Direction clingWallSent;
@@ -129,6 +135,9 @@ public class WallJumpLogic {
     private static boolean clingOnShip;
     // whether the hold is a ledge grab; the server charges hunger for those
     private static boolean clingAtLedge;
+    // the closest the player has faced the held wall during this hold, in
+    // degrees off its bearing: the ledge release measures turning AWAY from it
+    private static float clingFacingOff;
 
     // GRAVITY UNBOUND: while the player's gravity frame is rotated, every
     // direction below is expressed in that frame — "horizontal" is the
@@ -202,13 +211,15 @@ public class WallJumpLogic {
 
         // Both tracked before any early return below. A hit knocks the player off
         // the wall, and the rise of hurtTime is the only sign of it the client
-        // gets; the ground the player covered this tick sizes the ship probe.
-        boolean justHurt = pl.hurtTime > lastHurtTime;
+        // gets — bar the mod's own charge for catching the wall, which arrives
+        // from the server a few ticks into the cling and is its price, not a
+        // blow; the ground the player covered this tick sizes the ship probe.
+        boolean justHurt = pl.hurtTime > lastHurtTime && !hurtByCatchingWall(pl);
         lastHurtTime = pl.hurtTime;
         drift = lastPos == null ? Vec3.ZERO : pl.position().subtract(lastPos);
         lastPos = pl.position();
 
-        if (pl.onGround() || pl.getAbilities().flying || !pl.level().getFluidState(pl.blockPosition()).isEmpty() || pl.isHandsBusy()) {
+        if (onGround(pl) || pl.getAbilities().flying || !pl.level().getFluidState(pl.blockPosition()).isEmpty() || pl.isHandsBusy()) {
             ticksWallClinged = 0;
             ticksWallSlid = 0;
             stopSlid = false;
@@ -216,10 +227,7 @@ public class WallJumpLogic {
             clingZ = Double.NaN;
             clingAnchor = null;
             clingFall = 0.0;
-            lastShipHold = null;
-            heldPos = null;
-            shipCarry = Vec3.ZERO;
-            lastShipYaw = null;
+            endShipHold(pl);
             lastJumpHeight = Double.MAX_VALUE;
             slideScuff = 0.0;
             clingDirection = null;
@@ -227,10 +235,7 @@ public class WallJumpLogic {
             staleWalls.clear();
             wallJumpCount = 0;
             FRAME_WALLS.clear();
-            if (VS_LOADED) {
-                VSCompat.clearShipWalls();
-                VSCompat.clearClingAnchor();
-            }
+            if (VS_LOADED) VSCompat.clearShipWalls();
 
             return;
         }
@@ -268,7 +273,7 @@ public class WallJumpLogic {
                 clingFall = 0.0;
                 lastShipHold = null;
                 slideScuff = 0.0;
-                clingYaw = pl.getYRot();
+                clingFacingOff = facingOff(pl);
                 clingX = pl.getX();
                 clingZ = pl.getZ();
                 clingAnchor = pl.position();
@@ -278,12 +283,22 @@ public class WallJumpLogic {
                 // wherever the anchor claims to be.
                 heldPos = pl.position();
                 lastShipHold = vsEnabled() ? VSCompat.getClingWorldPos() : null;
-                lastShipYaw = vsEnabled() ? VSCompat.getClingShipYaw() : null;
+                if (lastShipHold != null) {
+                    // The server prices the catch from its own count of the fall,
+                    // and on a ship that count is the ship's descent as much as
+                    // the player's: a rider is carried down with it. The client's
+                    // count leaves the carry out, so the server is handed that one
+                    // first (the cling itself is reported right after this).
+                    sendFallDistance(pl.fallDistance);
+                    // and the hold is a ride from its first tick, see the hold below
+                    VSCompat.keepDragged(pl);
+                }
 
                 playHitSound(pl, getWallPos(pl));
                 spawnWallParticle(pl, getWallPos(pl));
             } else if (refusal != null && ticksKeyDown == 1 && ModConfig.debugShipCling) {
-                LOGGER.info("[cling] refused: {} (walls={}, ships: {})", refusal, walls,
+                LOGGER.info("[cling] refused: {} (walls={}, frame={}, ships: {})", refusal, walls,
+                        gravityFrame == null ? "none" : "up " + fmt(gravityUp),
                         vsEnabled() ? VSCompat.describeShips(pl.level(), shipProbe(pl), gravityUp) : "compat off");
             }
 
@@ -295,35 +310,25 @@ public class WallJumpLogic {
                 && !Double.isNaN(ledgeRise(pl, clingWallYaw, clingOnShip));
         clingAtLedge = atLedge;
 
-        // A grip turns with the ship. Valkyrien Skies swings a rider's yaw round as
-        // the ship turns, which the release below otherwise reads as the player
-        // turning away from a wall they are still square to.
-        if (vsEnabled()) {
-            Double shipYaw = VSCompat.getClingShipYaw();
-            if (shipYaw != null) {
-                if (lastShipYaw != null) clingYaw += Mth.wrapDegrees((float) (shipYaw - lastShipYaw));
-                lastShipYaw = shipYaw;
-            }
-        }
+        // Turning towards the wall is always allowed, so the closest the player
+        // has faced it is what the ledge release measures turning away from.
+        // (The bearing itself turns with a ship, as Valkyrien Skies turns a
+        // rider's yaw, so a ship swinging round under a grip changes nothing.)
+        clingFacingOff = Math.min(clingFacingOff, facingOff(pl));
 
-        if (!WallJumpClient.KEY_WALL_JUMP.isDown() || pl.onGround() || !pl.level().getFluidState(pl.blockPosition()).isEmpty() || walls.isEmpty() || pl.getFoodData().getFoodLevel() < 1
+        boolean grounded = onGround(pl);
+        if (!WallJumpClient.KEY_WALL_JUMP.isDown() || grounded || !pl.level().getFluidState(pl.blockPosition()).isEmpty() || walls.isEmpty() || pl.getFoodData().getFoodLevel() < 1
                 || justHurt || (atLedge && turnedFromCling(pl))) {
             if (ModConfig.debugShipCling && ticksWallClinged > 0) {
                 LOGGER.info("[cling] release: key={} ground={} fluid={} noWalls={} food={} hurt={} turned={}",
-                        !WallJumpClient.KEY_WALL_JUMP.isDown(), pl.onGround(),
+                        !WallJumpClient.KEY_WALL_JUMP.isDown(), grounded,
                         !pl.level().getFluidState(pl.blockPosition()).isEmpty(), walls.isEmpty(),
                         pl.getFoodData().getFoodLevel() < 1, justHurt, atLedge && turnedFromCling(pl));
             }
             ticksWallClinged = 0;
-            if (VS_LOADED) VSCompat.clearClingAnchor();
-            // Hand the ship's motion back on the way out, so letting go of a
-            // moving ship does not leave the player standing still beside it.
-            if (shipCarry.lengthSqr() > 0.0) {
-                pl.setDeltaMovement(shipCarry);
-                shipCarry = Vec3.ZERO;
-            }
+            endShipHold(pl);
 
-            if ((pl.input.forwardImpulse != 0 || pl.input.leftImpulse != 0) && !pl.onGround() && !walls.isEmpty()) {
+            if ((pl.input.forwardImpulse != 0 || pl.input.leftImpulse != 0) && !grounded && !walls.isEmpty()) {
                 if (wallJumpCount >= ServerConfig.maxWallJumps) return;
                 pl.resetFallDistance();
                 FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -401,9 +406,7 @@ public class WallJumpLogic {
 
         if (pl.fallDistance > 2) {
             pl.resetFallDistance();
-            FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
-            buffer.writeFloat((float) (motionY * motionY * 8));
-            ClientPlayNetworking.send(MessageFallDistance.ID, buffer);
+            sendFallDistance((float) (motionY * motionY * 8));
         }
 
         if (ModConfig.debugShipCling && shipAnchor != null && pl.tickCount % 4 == 0) {
@@ -446,15 +449,33 @@ public class WallJumpLogic {
             }
             heldPos = hold;
             pl.setPos(hold.x, hold.y, hold.z);
-            // Held so a wall jump off a moving ship keeps the ship's momentum.
+            // Kept for the way out, should nothing else carry the player then.
             // Frame-local under a gravity frame, as the player's velocity is.
-            // Left at rest rather than carrying the ship's speed. Commanding it
-            // meant move() drove the player that far through the ship's own
-            // geometry before this code ran next tick, and the collision that
-            // caused reported them as landed, which drops the cling on its very
-            // first check. The position hold above already carries them.
             shipCarry = gravityFrame != null ? GravityCompat.toLocal(shipStep, gravityFrame) : shipStep;
-            pl.setDeltaMovement(Vec3.ZERO);
+            // Ridden, not merely held. Valkyrien Skies moves a rider with the
+            // ship at the end of every tick, so between one hold and the next
+            // the hull stays exactly where the player left it. A hold alone was
+            // a step behind: the ship advanced after each hold, and the player's
+            // own movement next tick met a hull that had moved into them, whose
+            // collision reported them as landed (which dropped the cling and
+            // left them hanging at rest while the ship fell away) or shoved
+            // them off the wall — and on a spinning ship the wall itself drew
+            // away between holds. The rider registration lapses on its own a
+            // second after it is last refreshed, as it does for anyone who
+            // steps off a deck, and hands the ship's motion over when it does.
+            VSCompat.keepDragged(pl);
+            if (stopSlid) {
+                // The grip has given out: the slide carries on as a fall,
+                // relative to the ship like everything else here.
+                pl.setDeltaMovement(0.0, motionY, 0.0);
+                endShipHold(pl);
+            } else {
+                // Left at rest rather than carrying the ship's speed. Commanding
+                // it meant move() drove the player that far through the ship's
+                // own geometry before this code ran next tick. The position hold
+                // above and the ride carry them.
+                pl.setDeltaMovement(Vec3.ZERO);
+            }
         } else {
             pl.setDeltaMovement(0.0, motionY, 0.0);
         }
@@ -468,13 +489,63 @@ public class WallJumpLogic {
         if (ModConfig.debugShipCling) LOGGER.info("[cling] slid onto ground at {}", fmt(at));
         ticksWallClinged = 0;
         ticksWallSlid = 0;
+        pl.setPos(at.x, at.y, at.z);
+        pl.setDeltaMovement(Vec3.ZERO);
+        endShipHold(pl);
+        pl.setOnGround(true);
+    }
+
+    /**
+     * Ends the hold on a ship, wherever the cling ends: let go, slid onto the
+     * deck, grounded, or the grip giving out. The hold carried the player by
+     * position, so the ship's motion is theirs to keep on the way out —
+     * unless Valkyrien Skies is still carrying them as a rider, which it goes
+     * on doing for a while after anyone leaves a ship and then hands them the
+     * ship's motion itself; giving it here as well would double it.
+     */
+    private static void endShipHold(LocalPlayer pl) {
+        if (VS_LOADED) VSCompat.clearClingAnchor();
         heldPos = null;
         lastShipHold = null;
-        if (VS_LOADED) VSCompat.clearClingAnchor();
-        pl.setPos(at.x, at.y, at.z);
-        pl.setDeltaMovement(shipCarry);
-        pl.setOnGround(true);
-        shipCarry = Vec3.ZERO;
+        if (shipCarry.lengthSqr() > 0.0) {
+            if (!(VS_LOADED && VSCompat.isDraggedByShip(pl))) pl.setDeltaMovement(pl.getDeltaMovement().add(shipCarry));
+            shipCarry = Vec3.ZERO;
+        }
+    }
+
+    /**
+     * Whether the player is standing on something. During a hold on a ship the
+     * vanilla flag is not taken at its word: the hold moves the player by
+     * position, and the collision Valkyrien Skies runs on a body that a
+     * turning hull has moved into resolves along whichever axis it likes,
+     * which read as landing in mid-air. There it has to be borne out by a
+     * floor right under the feet.
+     */
+    private static boolean onGround(LocalPlayer pl) {
+        if (!pl.onGround()) return false;
+        if (lastShipHold == null) return true;
+        return floorBelow(pl, pl.position(), 0.1) != Double.POSITIVE_INFINITY;
+    }
+
+    /** How far the player faces from straight at the held wall, in degrees. */
+    private static float facingOff(LocalPlayer pl) {
+        return Math.abs(Mth.wrapDegrees(pl.getYRot() - clingWallYaw));
+    }
+
+    /**
+     * Whether the latest hit was the mod's own charge for catching a wall after
+     * a long fall: the price of the cling, not a blow that knocks the player
+     * off it.
+     */
+    private static boolean hurtByCatchingWall(LocalPlayer pl) {
+        DamageSource source = pl.getLastDamageSource();
+        return source != null && source.is(ModDamageTypes.WALL_CLING);
+    }
+
+    private static void sendFallDistance(float fallDistance) {
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        buffer.writeFloat(fallDistance);
+        ClientPlayNetworking.send(MessageFallDistance.ID, buffer);
     }
 
     /**
@@ -542,12 +613,16 @@ public class WallJumpLogic {
     }
 
     /**
-     * True once the player has turned far enough from the way they were facing
-     * when they took hold. Hands on a ledge cannot follow the body round a full
-     * turn, so past a right angle the grip is given up rather than swivelling.
+     * True once the player has turned too far from the held wall. Hands on a
+     * ledge cannot follow the body round a full turn, so a player facing more
+     * than a right angle away from the wall has let go rather than swivelled.
+     * A player who took hold already facing further away than that keeps
+     * whatever they had, and a little slack: they may face about as far from
+     * the wall as they have at any point since they grabbed it, so turning
+     * towards a ledge never lets go of it — only turning away does.
      */
     private static boolean turnedFromCling(LocalPlayer pl) {
-        return Math.abs(Mth.wrapDegrees(pl.getYRot() - clingYaw)) > LEDGE_RELEASE_YAW;
+        return facingOff(pl) > Math.max(LEDGE_RELEASE_YAW, clingFacingOff + LEDGE_RELEASE_SLACK);
     }
 
     private static boolean canWallJump(LocalPlayer pl) {
@@ -782,7 +857,10 @@ public class WallJumpLogic {
                 BlockHitResult hit = pl.level().clip(new ClipContext(
                         from, from.add(dirWorld.scale(reach)),
                         ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, pl));
-                if (hit.getType() == HitResult.Type.BLOCK) {
+                // A face lying flat to the frame is floor or ceiling, not a wall
+                // to grip: the deck a tilted frame's sloping rays reach down to.
+                if (hit.getType() == HitResult.Type.BLOCK
+                        && Math.abs(hitNormal(pl.level(), hit).dot(gravityUp)) < FLOOR_COS) {
                     wallHit = hit;
                     break;
                 }

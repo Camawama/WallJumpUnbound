@@ -28,10 +28,19 @@ issueTrackerURL = "${mod_issues}"
     ordering = "NONE"
     side = "${side}"
 
+# Shared library; the mod reaches Valkyrien Skies and Gravity Unbound through it.
+[[dependencies.${mod_id}]]
+    modId = "camafy"
+    mandatory = true
+    versionRange = "${camafy_version_range}"
+    ordering = "AFTER"
+    side = "BOTH"
+
 # Valkyrien Skies is optional: ship wall jumping activates only when it is installed.
+# (Camafy's ship support needs 2.4.11 or newer.)
 [[dependencies.${mod_id}]]
     modId = "valkyrienskies"
     mandatory = false
-    versionRange = "[2.4.0,)"
+    versionRange = "[2.4.11,)"
     ordering = "AFTER"
     side = "${side}"

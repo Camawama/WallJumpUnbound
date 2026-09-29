@@ -1,12 +1,13 @@
 package net.camacraft.walljumpunbound.network.message;
 
+import net.camacraft.camafy.network.NetValidate;
+import net.camacraft.camafy.network.Packets;
 import net.camacraft.walljumpunbound.init.ModConfig;
 import net.camacraft.walljumpunbound.init.ModDamageTypes;
 import net.camacraft.walljumpunbound.logic.WallClingPosture;
 import net.camacraft.walljumpunbound.network.PacketHandler;
 import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -42,12 +43,11 @@ public record MessageWallCling(boolean clinging, Direction wall, float yaw, bool
     }
 
     public static void handle(MessageWallCling message, Supplier<NetworkEvent.Context> supplier) {
-        supplier.get().enqueueWork(() -> {
-            ServerPlayer player = supplier.get().getSender();
+        Packets.handleServer(supplier, player -> {
             boolean wallJumpEnabled = ModConfig.wallJumpEnabled || (ModConfig.enableEnchantments && ModConfig.wallJumpEnchantment);
-            if (player == null || !wallJumpEnabled) return;
+            if (!wallJumpEnabled) return;
 
-            float yaw = Float.isFinite(message.yaw) ? message.yaw : 0.0F;
+            float yaw = NetValidate.finiteOr(message.yaw, 0.0F);
             // The server keeps the flag so the player's pose, and so the box
             // mobs swing at, matches the one their client is drawing. A fresh
             // grip is also where a long fall is paid for, from the server's own
@@ -59,6 +59,5 @@ public record MessageWallCling(boolean clinging, Direction wall, float yaw, bool
             PacketHandler.sendToTracking(player,
                     new MessageWallClingSync(player.getId(), message.clinging, message.wall, yaw, message.ship, message.ledge));
         });
-        supplier.get().setPacketHandled(true);
     }
 }

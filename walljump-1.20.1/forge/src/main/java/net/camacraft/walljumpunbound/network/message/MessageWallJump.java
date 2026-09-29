@@ -1,9 +1,9 @@
 package net.camacraft.walljumpunbound.network.message;
 
+import net.camacraft.camafy.network.Packets;
 import net.camacraft.walljumpunbound.init.ModConfig;
 import net.camacraft.walljumpunbound.init.ServerConfig;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -19,14 +19,12 @@ public record MessageWallJump(boolean didWallJump) {
 
 
     public static void handle(MessageWallJump message, Supplier<NetworkEvent.Context> supplier) {
-        supplier.get().enqueueWork(() -> {
-            ServerPlayer player = supplier.get().getSender();
+        Packets.handleServer(supplier, player -> {
             boolean wallJumpEnabled = ModConfig.wallJumpEnabled || (ModConfig.enableEnchantments && ModConfig.wallJumpEnchantment);
-            if (player != null && message.didWallJump && wallJumpEnabled) {
+            if (message.didWallJump && wallJumpEnabled) {
                 player.resetFallDistance();
                 player.causeFoodExhaustion((float) ServerConfig.exhaustionWallJump);
             }
         });
-        supplier.get().setPacketHandled(true);
     }
 }

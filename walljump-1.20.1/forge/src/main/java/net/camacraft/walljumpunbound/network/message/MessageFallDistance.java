@@ -1,9 +1,9 @@
 package net.camacraft.walljumpunbound.network.message;
 
+import net.camacraft.camafy.network.NetValidate;
+import net.camacraft.camafy.network.Packets;
 import net.camacraft.walljumpunbound.init.ModConfig;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -21,14 +21,11 @@ public record MessageFallDistance(float fallDistance) {
     }
 
     public static void handle(MessageFallDistance message, Supplier<NetworkEvent.Context> supplier) {
-        supplier.get().enqueueWork(() -> {
-            ServerPlayer player = supplier.get().getSender();
-            if (player == null || !anySenderFeatureEnabled()) return;
-            float fallDistance = message.fallDistance;
-            if (!Float.isFinite(fallDistance)) return;
-            player.fallDistance = Mth.clamp(fallDistance, 0.0F, MAX_FALL_DISTANCE);
+        Packets.handleServer(supplier, player -> {
+            if (!anySenderFeatureEnabled()) return;
+            // a value that isn't finite leaves the server's own count alone
+            player.fallDistance = NetValidate.finiteClamp(message.fallDistance, 0.0F, MAX_FALL_DISTANCE, player.fallDistance);
         });
-        supplier.get().setPacketHandled(true);
     }
 
     // Only wall jump and double jump send this packet; ignore it when neither is available.

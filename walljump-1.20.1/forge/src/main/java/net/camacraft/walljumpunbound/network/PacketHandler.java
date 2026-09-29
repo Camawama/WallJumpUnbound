@@ -1,5 +1,6 @@
 package net.camacraft.walljumpunbound.network;
 
+import net.camacraft.camafy.network.CamafyChannel;
 import net.camacraft.walljumpunbound.network.message.MessageFallDistance;
 import net.camacraft.walljumpunbound.network.message.MessageServerConfig;
 import net.camacraft.walljumpunbound.network.message.MessageWallCling;
@@ -8,39 +9,37 @@ import net.camacraft.walljumpunbound.network.message.MessageWallJump;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
 
 import static net.camacraft.walljumpunbound.WallJumpMod.MODID;
 
 public final class PacketHandler {
     private static final String PROTOCOL_VERSION = "3";
-    private static int nextId = 0;
-    public static final SimpleChannel INSTANCE = NetworkRegistry.ChannelBuilder
-            .named(new ResourceLocation(MODID, "network"))
-            .networkProtocolVersion(() -> PROTOCOL_VERSION)
-            .clientAcceptedVersions(PROTOCOL_VERSION::equals)
-            .serverAcceptedVersions(PROTOCOL_VERSION::equals)
-            .simpleChannel();
+    public static final CamafyChannel CHANNEL = CamafyChannel.create(new ResourceLocation(MODID, "network"), PROTOCOL_VERSION);
 
+    // Every message is pinned to the side that may send it, so a client can't
+    // push MessageServerConfig at the server and overwrite its rules. The
+    // registration order sets the message ids: keep it.
     public static void init() {
-        INSTANCE.registerMessage(nextId++, MessageFallDistance.class, MessageFallDistance::encode, MessageFallDistance::decode, MessageFallDistance::handle);
-        INSTANCE.registerMessage(nextId++, MessageWallJump.class, MessageWallJump::encode, MessageWallJump::decode, MessageWallJump::handle);
-        INSTANCE.registerMessage(nextId++, MessageServerConfig.class, MessageServerConfig::encode, MessageServerConfig::decode, MessageServerConfig::handle);
-        INSTANCE.registerMessage(nextId++, MessageWallCling.class, MessageWallCling::encode, MessageWallCling::decode, MessageWallCling::handle);
-        INSTANCE.registerMessage(nextId++, MessageWallClingSync.class, MessageWallClingSync::encode, MessageWallClingSync::decode, MessageWallClingSync::handle);
+        CHANNEL.serverbound(MessageFallDistance.class, MessageFallDistance::encode, MessageFallDistance::decode, MessageFallDistance::handle)
+                .serverbound(MessageWallJump.class, MessageWallJump::encode, MessageWallJump::decode, MessageWallJump::handle)
+                .clientbound(MessageServerConfig.class, MessageServerConfig::encode, MessageServerConfig::decode, MessageServerConfig::handle)
+                .serverbound(MessageWallCling.class, MessageWallCling::encode, MessageWallCling::decode, MessageWallCling::handle)
+                .clientbound(MessageWallClingSync.class, MessageWallClingSync::encode, MessageWallClingSync::decode, MessageWallClingSync::handle);
+    }
+
+    public static <T> void sendToAll(T message) {
+        CHANNEL.toAll(message);
     }
 
     public static <T> void sendToServer(T message) {
-        INSTANCE.sendToServer(message);
+        CHANNEL.toServer(message);
     }
 
     public static <T> void sendToPlayer(ServerPlayer player, T message) {
-        INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
+        CHANNEL.toPlayer(player, message);
     }
 
     public static <T> void sendToTracking(Entity entity, T message) {
-        INSTANCE.send(PacketDistributor.TRACKING_ENTITY.with(() -> entity), message);
+        CHANNEL.toTracking(entity, message);
     }
 }

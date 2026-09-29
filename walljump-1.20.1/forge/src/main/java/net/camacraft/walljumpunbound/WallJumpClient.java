@@ -27,7 +27,9 @@ public class WallJumpClient {
     }
 
     public static void playFallingSound(LocalPlayer player) {
-        if (ModConfig.playFallingSound && player.fallDistance > 1.5 && !player.isFallFlying() && (FALLING_SOUND == null || FALLING_SOUND.isStopped())) {
+        // (no falling wind while adrift in zero gravity, where nothing ever resets the fall distance)
+        if (ModConfig.playFallingSound && player.fallDistance > 1.5 && !player.isFallFlying() && (FALLING_SOUND == null || FALLING_SOUND.isStopped())
+                && !net.camacraft.camafy.compat.gravity.Gravity.isWeightless(player)) {
             FALLING_SOUND = new FallingSoundInstance(player);
             Minecraft.getInstance().getSoundManager().play(FALLING_SOUND);
         }

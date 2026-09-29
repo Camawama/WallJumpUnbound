@@ -1,5 +1,6 @@
 package net.camacraft.walljumpunbound.network.message;
 
+import net.camacraft.camafy.network.Packets;
 import net.camacraft.walljumpunbound.logic.WallClingHolder;
 import net.camacraft.walljumpunbound.logic.WallClingPosture;
 import net.minecraft.client.Minecraft;
@@ -28,8 +29,7 @@ public record MessageWallClingSync(int entityId, boolean clinging, Direction wal
     }
 
     public static void handle(MessageWallClingSync message, Supplier<NetworkEvent.Context> supplier) {
-        supplier.get().enqueueWork(() -> ClientHandler.apply(message));
-        supplier.get().setPacketHandled(true);
+        Packets.handleClient(supplier, () -> () -> ClientHandler.apply(message));
     }
 
     // Kept apart so the client-only classes are never loaded on a server.

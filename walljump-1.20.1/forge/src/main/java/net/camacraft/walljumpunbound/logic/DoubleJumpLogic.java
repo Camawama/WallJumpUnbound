@@ -1,5 +1,6 @@
 package net.camacraft.walljumpunbound.logic;
 
+import net.camacraft.camafy.compat.gravity.Gravity;
 import net.camacraft.walljumpunbound.init.ModEnchantments;
 import net.camacraft.walljumpunbound.init.ServerConfig;
 import net.camacraft.walljumpunbound.network.PacketHandler;
@@ -33,9 +34,14 @@ public class DoubleJumpLogic {
         if (pl.onGround() || pl.level().containsAnyLiquid(box) || WallJumpLogic.ticksWallClinged > 0 || pl.isPassenger() || pl.getAbilities().mayfly) {
             jumpCount = getMultiJumps(pl);
         } else if (pl.input.jumping) {
-            if (!jumpKey && jumpCount > 0 && motion.y < 0.333 && WallJumpLogic.ticksWallClinged < 1 && pl.getFoodData().getFoodLevel() > 0) {
+            // (not while another mod owns the player's motion: a grapple rope,
+            // or Grapple Unbound's own double jump taking this same press)
+            // (and not in zero gravity, where a jump off nothing is a rise that never ends)
+            if (!jumpKey && jumpCount > 0 && motion.y < 0.333 && WallJumpLogic.ticksWallClinged < 1 && pl.getFoodData().getFoodLevel() > 0
+                    && !WallJumpLogic.motionOwnedElsewhere(pl) && !Gravity.isWeightless(pl)) {
                 pl.jumpFromGround();
                 jumpCount--;
+                WallJumpLogic.claimPushOff();
 
                 pl.resetFallDistance();
                 PacketHandler.sendToServer(new MessageFallDistance(pl.fallDistance));

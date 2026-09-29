@@ -1,5 +1,6 @@
 package net.camacraft.walljumpunbound.logic;
 
+import net.camacraft.camafy.compat.gravity.Gravity;
 import net.camacraft.walljumpunbound.init.ModEnchantments;
 import net.camacraft.walljumpunbound.init.ServerConfig;
 import net.minecraft.client.Minecraft;
@@ -22,6 +23,11 @@ public class SpeedBoostLogic {
     public static void doSpeedBoost(LocalPlayer pl) {
         if ((!ServerConfig.enableEnchantments || !ServerConfig.speedBoostEnchantment) && (ServerConfig.sprintSpeedBoost == 0 && ServerConfig.elytraSpeedBoost == 0))
             return;
+        // The boosts are built on world axes (the look's x/z, world up), so not
+        // under a rotated gravity frame; and nothing is added to a velocity
+        // another mod owns (a grapple rope's).
+        if (!Gravity.frame(pl).isDefault() || WallJumpLogic.motionOwnedElsewhere(pl))
+            return;
         int jumpBoostLevel = 0;
         MobEffectInstance jumpBoostEffect = pl.getEffect(MobEffects.JUMP);
         if (jumpBoostEffect != null) jumpBoostLevel = jumpBoostEffect.getAmplifier() + 1;
@@ -43,7 +49,8 @@ public class SpeedBoostLogic {
                 if (boost.length() > 0.5)
                     pl.level().addParticle(ParticleTypes.FIREWORK, pos.x, pos.y, pos.z, 0, 0, 0);
             }
-        } else if (pl.isSprinting()) {
+        } else if (pl.isSprinting() && (pl.onGround() || !Gravity.isWeightless(pl))) {
+            // (not adrift in zero gravity: with no air drag to cap it, the airborne push only grows)
             float sprintSpeedBoost = (float) (ServerConfig.sprintSpeedBoost + (getEquipmentBoost(pl, EquipmentSlot.FEET) * (ServerConfig.speedBoostMultiplier / 2)));
             if (!pl.onGround()) sprintSpeedBoost /= 3.125F;
 

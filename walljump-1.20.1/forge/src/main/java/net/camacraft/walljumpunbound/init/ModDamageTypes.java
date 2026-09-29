@@ -1,14 +1,13 @@
 package net.camacraft.walljumpunbound.init;
 
+import net.camacraft.camafy.compat.gravity.Gravity;
+import net.camacraft.camafy.physics.VanillaFall;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 
 import static net.camacraft.walljumpunbound.WallJumpMod.MODID;
@@ -42,16 +41,17 @@ public final class ModDamageTypes {
      */
     public static void hurtForCatchingWall(ServerPlayer player) {
         if (!ModConfig.clingFallDamage) return;
-        float fall = player.fallDistance;
+        // A fall is only a fall under gravity: in zero gravity the distance drifted "down" costs
+        // nothing, and in low gravity it lands like the shorter drop that reaches the same speed.
+        double strength = Math.min(1.0, Gravity.strength(player));
+        if (strength < Gravity.WEIGHTLESS_BELOW) return;
+        float fall = (float) (player.fallDistance * strength);
         // A fall the ground itself would forgive is forgiven here too.
         double threshold = Math.max(ModConfig.clingFallDamageMinDistance, ModConfig.minFallDistance);
         if (!(fall >= threshold)) return;
 
-        // The ground's own sum, from LivingEntity.calculateFallDamage.
-        MobEffectInstance jumpBoost = player.getEffect(MobEffects.JUMP);
-        float boost = jumpBoost == null ? 0.0F : jumpBoost.getAmplifier() + 1;
-        float groundDamage = fall - 3.0F - boost;
-        int damage = Mth.ceil(groundDamage * ModConfig.clingFallDamageFraction);
+        // The ground's own sum (LivingEntity.calculateFallDamage), scaled by the fraction.
+        int damage = VanillaFall.fallDamage(player, fall, (float) ModConfig.clingFallDamageFraction);
         if (damage > 0) player.hurt(wallCling(player), damage);
     }
 }

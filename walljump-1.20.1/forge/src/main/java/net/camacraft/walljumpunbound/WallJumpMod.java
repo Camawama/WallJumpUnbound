@@ -3,11 +3,14 @@ package net.camacraft.walljumpunbound;
 import net.camacraft.walljumpunbound.init.ModConfig;
 import net.camacraft.walljumpunbound.init.ModEnchantments;
 import net.camacraft.walljumpunbound.network.PacketHandler;
+import net.camacraft.walljumpunbound.network.message.MessageServerConfig;
+import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 @Mod(WallJumpMod.MODID)
 public class WallJumpMod {
@@ -32,6 +35,11 @@ public class WallJumpMod {
     }
 
     private static void onConfigReloading(ModConfigEvent.Reloading event) {
-        if (event.getConfig().getSpec() == ModConfig.SPEC) ModConfig.load();
+        if (event.getConfig().getSpec() != ModConfig.SPEC) return;
+        ModConfig.load();
+        // A live edit: hand the new rules to everyone already connected. On the
+        // server thread, since the file watcher calls this from its own.
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null) server.execute(() -> PacketHandler.sendToAll(MessageServerConfig.fromLocalConfig()));
     }
 }

@@ -1,6 +1,7 @@
 package net.camacraft.walljumpunbound.init;
 
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.common.ForgeConfigSpec.BooleanValue;
 import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
 import net.minecraftforge.common.ForgeConfigSpec.DoubleValue;
@@ -90,6 +91,9 @@ public final class ModConfig {
     /** Copies the file's values into the static fields. Called once the file has loaded, and again whenever it changes. */
     public static void load() {
         apply(true);
+        // Nothing ever syncs ServerConfig on a dedicated server, so there it
+        // follows the file directly (enchantment gating and exhaustion read it).
+        if (FMLEnvironment.dist.isDedicatedServer()) ServerConfig.reset();
         LOGGER.info("Config loaded: walljumpunbound.toml");
     }
 

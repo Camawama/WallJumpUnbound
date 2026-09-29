@@ -13,6 +13,8 @@ import org.joml.Vector3d;
 import org.joml.Vector3dc;
 import org.valkyrienskies.core.api.ships.Ship;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
+import org.valkyrienskies.mod.common.util.EntityDraggingInformation;
+import org.valkyrienskies.mod.common.util.IEntityDraggingInformationProvider;
 import org.valkyrienskies.mod.common.util.VectorConversionsMCKt;
 
 import java.util.ArrayList;
@@ -299,6 +301,31 @@ public final class VSCompat {
 
     public static void clearClingAnchor() {
         clingShip = null;
+    }
+
+    /**
+     * Makes the player a rider of the clung ship for another while, the way
+     * Valkyrien Skies treats anyone who has just stood on its deck: at the end
+     * of every tick it moves them (and turns their yaw) with the ship, and it
+     * gives them the ship's motion when the registration lapses, a second
+     * after the last refresh. Called every tick of a hold on a ship. The
+     * boarding impulse the registration would otherwise fire is cleared, and
+     * the world-collision wipe of the registration is waived for the tick, as
+     * the hold itself moves the player into and out of things.
+     */
+    public static void keepDragged(LocalPlayer pl) {
+        if (clingShip == null) return;
+        EntityDraggingInformation info = ((IEntityDraggingInformationProvider) pl).getDraggingInformation();
+        Long current = info.getLastShipStoodOn();
+        if (current == null || current != clingShip.getId()) info.setLastShipStoodOn(clingShip.getId());
+        // (its setter also drops the boarding impulse armed above)
+        info.setTicksSinceStoodOnShip(0);
+        info.setIgnoreNextGroundStand(true);
+    }
+
+    /** Whether Valkyrien Skies is currently carrying the player along with a ship as a rider. */
+    public static boolean isDraggedByShip(LocalPlayer pl) {
+        return ((IEntityDraggingInformationProvider) pl).getDraggingInformation().isEntityBeingDraggedByAShip();
     }
 
     /**

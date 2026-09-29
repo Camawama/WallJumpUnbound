@@ -70,11 +70,18 @@ sourceSets.main.resources.srcDir 'src/generated/resources'
 repositories {
     maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
     mavenCentral()
+    // Camafy (net.camacraft.camafy:camafy) is published to the local maven
+    mavenLocal()
     maven { url = 'https://maven.minecraftforge.net' }
     flatDir {
         dir 'libs'
     }
-    maven { url = 'https://maven.valkyrienskies.org' }
+    maven {
+        url = 'https://maven.valkyrienskies.org'
+        // It serves Kotlin for Forge's metadata but not its -all jar, which then
+        // fails to resolve: KFF comes from its own repository below.
+        content { excludeGroup 'thedarkcolour' }
+    }
     maven { url = 'https://thedarkcolour.github.io/KotlinForForge/' }
 }
 
@@ -83,13 +90,16 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     compileOnly project(":common")
 
+    // Shared library: Valkyrien Skies, gravity, networking and config helpers.
+    implementation fg.deobf("net.camacraft.camafy:camafy:${camafy_version}")
+
     implementation fg.deobf("thedarkcolour:kotlinforforge:4.11.0")
-    // Optional runtime dependency: the mod only touches VS through VSCompat when it is installed.
-    // Core versions pinned to what VS 2.4.5 ships with (see its pom) for reproducible builds.
-    implementation fg.deobf("org.valkyrienskies:valkyrienskies-120-forge:${vs_version}")
-    implementation "org.valkyrienskies.core:api:${vs_core_version}"
-    implementation "org.valkyrienskies.core:impl:${vs_core_version}"
-    implementation "org.valkyrienskies.core:util:${vs_core_version}"
+    // Dev runs only: the mod reaches VS solely through Camafy, so nothing compiles against it.
+    // Core versions pinned to what that VS ships with (see its pom) for reproducible builds.
+    runtimeOnly fg.deobf("org.valkyrienskies:valkyrienskies-120-forge:${forge_vs_version}")
+    runtimeOnly "org.valkyrienskies.core:api:${forge_vs_core_version}"
+    runtimeOnly "org.valkyrienskies.core:impl:${forge_vs_core_version}"
+    runtimeOnly "org.valkyrienskies.core:util:${forge_vs_core_version}"
     implementation "org.joml:joml:1.10.5"
 }
 
@@ -97,6 +107,7 @@ def resourceTargets = ['META-INF/mods.toml', 'pack.mcmeta']
 def replaceProperties = [
         minecraft_version: minecraft_version, minecraft_version_range: forge_minecraft_version_range,
         forge_version: forge_version, forge_version_range: forge_version_range,
+        camafy_version_range: camafy_version_range,
         loader_version_range: forge_loader_version_range,
         mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: version,
         mod_author: mod_author, mod_description: mod_description,

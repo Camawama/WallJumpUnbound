@@ -1,12 +1,23 @@
 package net.camacraft.walljumpunbound.enchantment;
 
 import net.camacraft.walljumpunbound.init.ServerConfig;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentCategory;
+
+import java.util.Set;
 import net.minecraft.world.item.enchantment.ProtectionEnchantment;
 
 public class DoubleJumpEnchantment extends Enchantment {
+    // Grapple Unbound's double jump: the same move, on the same boots, off the same
+    // key. Only one of the two goes on a pair (matched by id, so neither mod
+    // needs the other installed).
+    private static final Set<ResourceLocation> GRAPPLE_DOUBLE_JUMP = Set.of(
+            new ResourceLocation("grappleunbound", "doublejumpenchantment"),
+            new ResourceLocation("grapplemod", "doublejumpenchantment"));
+
     public DoubleJumpEnchantment() {
         super(Rarity.RARE, EnchantmentCategory.ARMOR_FEET, new EquipmentSlot[]{EquipmentSlot.FEET});
     }
@@ -33,6 +44,8 @@ public class DoubleJumpEnchantment extends Enchantment {
 
     @Override
     protected boolean checkCompatibility(Enchantment enchantment) {
+        if (GRAPPLE_DOUBLE_JUMP.contains(BuiltInRegistries.ENCHANTMENT.getKey(enchantment)))
+            return false;
         if (enchantment instanceof ProtectionEnchantment protection)
             return protection.type != ProtectionEnchantment.Type.FALL;
         return this != enchantment;
