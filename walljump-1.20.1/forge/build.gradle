@@ -83,6 +83,19 @@ repositories {
         content { excludeGroup 'thedarkcolour' }
     }
     maven { url = 'https://thedarkcolour.github.io/KotlinForForge/' }
+    // Create 6, Flywheel and Ponder (compat/create, compileOnly), and Registrate
+    maven {
+        url = 'https://maven.createmod.net'
+        content {
+            includeGroup 'com.simibubi.create'
+            includeGroup 'dev.engine-room.flywheel'
+            includeGroup 'net.createmod.ponder'
+        }
+    }
+    maven {
+        url = 'https://maven.tterrag.com'
+        content { includeGroup 'com.tterrag.registrate' }
+    }
 }
 
 dependencies {
@@ -101,6 +114,14 @@ dependencies {
     runtimeOnly "org.valkyrienskies.core:impl:${forge_vs_core_version}"
     runtimeOnly "org.valkyrienskies.core:util:${forge_vs_core_version}"
     implementation "org.joml:joml:1.10.5"
+
+    // Create (optional: clinging to contraptions, compat/create). Compile only, never bundled and never on a run:
+    // everything naming a Create type lives in compat/create and is reached only while Create is loaded
+    // (ContraptionCompat.LOADED). The pack's build, 6.0.8-289, as Full Stop compiles against it.
+    compileOnly fg.deobf("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
+    compileOnly fg.deobf("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}") { transitive = false }
+    compileOnly fg.deobf("dev.engine-room.flywheel:flywheel-forge-api-${minecraft_version}:${flywheel_version}") { transitive = false }
+    compileOnly fg.deobf("com.tterrag.registrate:Registrate:${registrate_version}") { transitive = false }
 }
 
 def resourceTargets = ['META-INF/mods.toml', 'pack.mcmeta']

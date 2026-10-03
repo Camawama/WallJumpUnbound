@@ -39,6 +39,13 @@ issueTrackerURL = "${mod_issues}"
 # Valkyrien Skies is optional: ship wall jumping activates only when it is installed.
 # (Camafy's ship support needs 2.4.11 or newer.)
 [[dependencies.${mod_id}]]
+    modId = "create"
+    mandatory = false
+    versionRange = "[6.0,)"
+    ordering = "NONE"
+    side = "CLIENT"
+
+[[dependencies.${mod_id}]]
     modId = "valkyrienskies"
     mandatory = false
     versionRange = "[2.4.11,)"

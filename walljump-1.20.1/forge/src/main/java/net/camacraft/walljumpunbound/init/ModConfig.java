@@ -68,6 +68,10 @@ public final class ModConfig {
     public static double shipWallDetectionRange;
     public static boolean stickToMovingShips;
     public static boolean debugShipCling;
+    // -------------------------------------------------------------------- create
+    public static boolean enableCreateCompat;
+    public static double contraptionWallDetectionRange;
+    public static boolean stickToMovingContraptions;
     // -------------------------------------------------------------- enchantments
     public static boolean enableEnchantments;
     public static boolean wallJumpEnchantment;
@@ -135,6 +139,10 @@ public final class ModConfig {
         stickToMovingShips = value(VALUES.stickToMovingShips, loaded);
         debugShipCling = value(VALUES.debugShipCling, loaded);
 
+        enableCreateCompat = value(VALUES.enableCreateCompat, loaded);
+        contraptionWallDetectionRange = value(VALUES.contraptionWallDetectionRange, loaded);
+        stickToMovingContraptions = value(VALUES.stickToMovingContraptions, loaded);
+
         enableEnchantments = value(VALUES.enableEnchantments, loaded);
         wallJumpEnchantment = value(VALUES.wallJumpEnchantment, loaded);
         doubleJumpEnchantment = value(VALUES.doubleJumpEnchantment, loaded);
@@ -176,6 +184,10 @@ public final class ModConfig {
         final DoubleValue shipWallDetectionRange;
         final BooleanValue stickToMovingShips;
         final BooleanValue debugShipCling;
+
+        final BooleanValue enableCreateCompat;
+        final DoubleValue contraptionWallDetectionRange;
+        final BooleanValue stickToMovingContraptions;
 
         final BooleanValue enableEnchantments;
         final BooleanValue wallJumpEnchantment;
@@ -276,8 +288,21 @@ public final class ModConfig {
                     "When off, the ship can sail out from under your grip.")
                     .define("stickToMovingShips", true);
             debugShipCling = b.comment("[client] Write ship cling and wall detection details to the game log, including why a cling was",
-                    "refused and what the hull probe touched. Turn it on before reporting a ship bug.")
+                    "refused and what the hull probe (and, with Create, the contraption probe) touched. Turn it on before reporting a ship bug.")
                     .define("debugShipCling", false);
+            b.pop();
+
+            b.comment("Clinging to Create contraptions: the blocks a bearing turns, a piston, pulley or gantry moves, a minecart",
+                    "contraption or a train carriage. Nothing here does anything without Create installed.")
+                    .push("create");
+            enableCreateCompat = b.comment("[client] Cling to and jump off the blocks of Create contraptions, moving and turning ones included.")
+                    .define("enableCreateCompat", true);
+            contraptionWallDetectionRange = b.comment("[client] How far past your hitbox contraption walls are felt for, in blocks.",
+                    "Raise it if clinging to a turning contraption feels finicky.")
+                    .defineInRange("contraptionWallDetectionRange", 0.06, 0.01, 0.5);
+            stickToMovingContraptions = b.comment("[client] Carry you along with the contraption's movement and turning while clinging,",
+                    "and give you its speed when you let go or jump off. When off, it slides out from under your grip.")
+                    .define("stickToMovingContraptions", true);
             b.pop();
 
             b.comment("The mod's enchantments. The three switches after the first only matter while enableEnchantments is on.")
