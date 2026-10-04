@@ -26,6 +26,7 @@ public abstract class LocalPlayerMixin {
         DoubleJumpLogic.doDoubleJump(pl);
         SpeedBoostLogic.doSpeedBoost(pl);
         StepAssistLogic.doStepAssist(pl);
+        WallJumpLogic.afterContraptionRelease(pl);
         WallJumpLogic.updateMotionClaim(pl);
     }
 

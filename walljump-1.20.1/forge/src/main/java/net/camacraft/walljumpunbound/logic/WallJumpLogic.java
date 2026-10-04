@@ -128,6 +128,8 @@ public class WallJumpLogic {
     private static final double CONTRAPTION_STANDOFF = 0.01;
     /** The most a hold is drawn back onto a contraption's face in one tick, in blocks. */
     private static final double CONTRAPTION_MAX_PULL = 0.08;
+    /** How long a jump off a Create contraption's wall is kept clear of that wall: about a wall jump's climb, in ticks. */
+    private static final int CONTRAPTION_RELEASE_TICKS = 12;
 
     public static int ticksWallClinged;
     public static int ticksWallSlid;
@@ -190,6 +192,14 @@ public class WallJumpLogic {
     private static GravityFrame gravityFrame = GravityFrame.DEFAULT;
     // the point the cling holds (frame mode pins the tangential position to it)
     private static Vec3 clingAnchor = null;
+
+    /** Ticks left of keeping a jump off a contraption's wall clear of it (see startContraptionRelease); 0 when none. */
+    private static int contraptionReleaseTicks;
+    /** That wall's outward normal: in the world, and flat in the player's own frame (as their motion is). */
+    private static Vec3 contraptionReleaseWorldNormal = Vec3.ZERO;
+    private static Vec3 contraptionReleaseNormal = Vec3.ZERO;
+    /** How that wall was moving when let go of (frame-local, blocks a tick), which the clearance is measured against. */
+    private static Vec3 contraptionReleaseWallMotion = Vec3.ZERO;
     // the wall block each probed direction found (frame mode)
     private static final Map<Direction, BlockPos> FRAME_WALLS = new EnumMap<>(Direction.class);
 
@@ -450,6 +460,10 @@ public class WallJumpLogic {
                 }
             }
             ticksWallClinged = 0;
+            // A Create contraption's wall let go of, and how it was moving: read before the hold ends (which
+            // hands that motion over), for the jump below.
+            Vec3 contraptionWall = clingOnContraption ? clingWallNormal : null;
+            Vec3 contraptionWallMotion = shipCarry;
             endShipHold(pl);
 
             if ((pl.input.forwardImpulse != 0 || pl.input.leftImpulse != 0) && !grounded && !walls.isEmpty()) {
@@ -459,6 +473,7 @@ public class WallJumpLogic {
 
                 wallJump(pl, (float) ServerConfig.wallJumpHeight);
                 staleWalls = EnumSet.copyOf(walls);
+                if (contraptionWall != null) startContraptionRelease(contraptionWall, contraptionWallMotion);
             }
 
             return;
@@ -626,6 +641,50 @@ public class WallJumpLogic {
         pl.setDeltaMovement(Vec3.ZERO);
         endShipHold(pl);
         pl.setOnGround(true);
+    }
+
+    /**
+     * Starts the climb off a Create contraption's wall. A jump off a wall pushes the
+     * way the player presses, and pressing towards the wall (a wall climb) pushes into
+     * it. A block or a ship's hull simply stops that push and the rise is kept; but
+     * vanilla's collision never sees a contraption, and Create's own collider shortens
+     * a body's whole motion to where it would meet the contraption, rise and all: from
+     * the hold's 0.01 off the face a push of 0.23 into it kept 4% of the jump, which is
+     * no jump at all. So for the climb, whatever of the player's motion heads into
+     * that wall is taken out each tick, which leaves Create nothing to shorten
+     * (see afterContraptionRelease).
+     */
+    private static void startContraptionRelease(Vec3 worldNormal, Vec3 wallMotion) {
+        Vec3 local = gravityFrame.worldToLocal(worldNormal);
+        Vec3 flat = new Vec3(local.x, 0.0, local.z);
+        if (flat.lengthSqr() < 1.0E-8) return;
+        contraptionReleaseNormal = flat.normalize();
+        contraptionReleaseWorldNormal = worldNormal;
+        contraptionReleaseWallMotion = wallMotion;
+        contraptionReleaseTicks = CONTRAPTION_RELEASE_TICKS;
+    }
+
+    /**
+     * Keeps a jump off a contraption's wall clear of that wall for the climb (see
+     * startContraptionRelease): at the end of the player's tick, before the
+     * contraptions tick and Create's collider judges the player, the part of their
+     * motion that runs into that wall (measured against the wall's own motion) is
+     * taken out, for as long as the wall is still beside them. Over on landing, on
+     * the next grip, or when the time is up.
+     */
+    public static void afterContraptionRelease(LocalPlayer pl) {
+        if (contraptionReleaseTicks <= 0) return;
+        if (ticksWallClinged > 0 || pl.onGround()) {
+            contraptionReleaseTicks = 0;
+            return;
+        }
+        contraptionReleaseTicks--;
+        ContraptionContact wall = ContraptionCompat.findWall(pl.level(), contraptionProbe(pl), gravityFrame.up(),
+                contraptionReleaseWorldNormal.scale(-1.0));
+        if (wall == null || wall.normal().dot(contraptionReleaseWorldNormal) < 0.7) return;
+        Vec3 motion = pl.getDeltaMovement();
+        double into = motion.subtract(contraptionReleaseWallMotion).dot(contraptionReleaseNormal);
+        if (into < 0.0) pl.setDeltaMovement(motion.subtract(contraptionReleaseNormal.scale(into)));
     }
 
     /**
