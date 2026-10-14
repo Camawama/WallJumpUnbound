@@ -7,7 +7,6 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -35,6 +34,14 @@ public abstract class PlayerMixin implements WallClingPosture {
      * whole of a ledge-hanging player below the lip: nothing above could see or
      * reach them. This runs on both sides, since the cling reaches the server
      * over the network, so the box mobs swing at is the one the pose draws.
+     *
+     * The fit test is the entity's own ({@code canEnterPose}), which a gravity
+     * mod turns with the player's frame. It used to be a box built upright in
+     * the world, which under Gravity Unbound's plating or a core is not the
+     * player's body at all: it stood the player up or left them crouched by
+     * whatever was beside them in world terms, and the two sides did not agree
+     * ("the crouching activates every second I'm clung to the wall for a split
+     * second" in a gravity field, the hitbox changing with it).
      */
     @Inject(method = "updatePlayerPose", at = @At("TAIL"))
     private void walljumpunbound$standWhileClinging(CallbackInfo ci) {
@@ -43,10 +50,9 @@ public abstract class PlayerMixin implements WallClingPosture {
         Player self = (Player) (Object) this;
         if (self.getPose() != Pose.CROUCHING) return;
 
-        // Never stand up into a block: this is the fit test vanilla itself makes
-        // before settling on a pose, spelled out because it is not public.
-        AABB standing = self.getDimensions(Pose.STANDING).makeBoundingBox(self.position()).deflate(1.0E-7D);
-        if (self.level().noCollision(self, standing)) self.setPose(Pose.STANDING);
+        // Never stand up into a block: the fit test vanilla itself makes before
+        // settling on a pose.
+        if (((EntityPoseAccessor) self).walljumpunbound$canEnterPose(Pose.STANDING)) self.setPose(Pose.STANDING);
     }
 
     @Override

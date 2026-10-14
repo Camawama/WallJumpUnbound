@@ -947,11 +947,26 @@ public class WallJumpLogic {
     private static boolean wallAt(LivingEntity entity, Vec3 into, Vec3 up, double rise, double out) {
         Vec3 at = entity.position().add(up.scale(rise));
         double half = entity.getBbWidth() / 2, thick = LEDGE_PROBE_SIZE / 2;
-        AABB slice = new AABB(at.x - half, at.y - thick, at.z - half, at.x + half, at.y + thick, at.z + half)
+        // Thin along the frame's up and the footprint's width across it, per world
+        // axis. Built for world up alone, the slice was thin along world Y: under
+        // gravity plating pulling east (up = west) a wall above or below the player
+        // in world terms stood further off than the probe reached, so it never
+        // found a ledge there and the grab fell back to a plain cling ("I could
+        // only ledge grab certain sides (North and South)"); along the frame's up
+        // it was the footprint's whole width, which blurred the ledge's height.
+        // Exact for an axis-aligned frame, the box around the slice otherwise.
+        double ex = extent(up.x, half, thick), ey = extent(up.y, half, thick), ez = extent(up.z, half, thick);
+        AABB slice = new AABB(at.x - ex, at.y - ey, at.z - ez, at.x + ex, at.y + ey, at.z + ez)
                 .expandTowards(into.x * out, into.y * out, into.z * out);
         if (Collisions.blocked(entity.level(), slice)) return true;
         if (vsEnabled() && VSCompat.intersectsShipBlock(entity.level(), slice)) return true;
         return ContraptionCompat.intersects(entity.level(), slice);
+    }
+
+    /** Half the slice's extent along a world axis whose share of the frame's up is {@code upShare}. */
+    private static double extent(double upShare, double half, double thick) {
+        double along = Math.abs(upShare);
+        return along * thick + Math.sqrt(Math.max(0.0, 1.0 - along * along)) * half;
     }
 
     /**

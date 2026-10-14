@@ -38,8 +38,11 @@ public class StepAssistLogic {
         // The fall-speed window is the part of a jump spent near its top, which low gravity
         // stretches and zero gravity makes endless (floating by any wall read as standing): it
         // shrinks with the local gravity, and there is no step assist without any.
+        // Nor for a body gliding on an elytra: vanilla ends a glide on any tick the body is on the ground, so a level
+        // glide into a wall (a slime wall it bounces off, a ship's side) stopped the elytra here (2026-10-12).
         double strength = Math.min(1.0, Gravity.strength(pl));
         if (Gravity.frame(pl).isDefault() && strength >= Gravity.WEIGHTLESS_BELOW && !WallJumpLogic.motionOwnedElsewhere(pl)
+                && !pl.isFallFlying()
                 && (pl.horizontalCollision || WallJumpLogic.wallInReach())
                 && ServerConfig.stepAssist && pl.getDeltaMovement().y > -0.2 * strength && pl.getDeltaMovement().y < 0.01 * strength) {
             if (!Collisions.blocked(pl.level(), pl.getBoundingBox().inflate(0.01, -pl.maxUpStep() + 0.02, 0.01))) {

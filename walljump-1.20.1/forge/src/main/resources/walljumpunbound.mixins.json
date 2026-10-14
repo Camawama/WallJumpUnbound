@@ -4,6 +4,7 @@
   "package": "net.camacraft.walljumpunbound.init.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "EntityPoseAccessor",
     "PlayerListMixin",
     "PlayerMixin"
   ],
