@@ -1,11 +1,22 @@
-# IDE
-.idea/
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
 *.iml
-out/
+.idea/*
 
-# Gradle
-build/
-.gradle/
+# gradle
+build
+.gradle
 
-# Minecraft run directories
-run/
+# other
+eclipse
+run
