@@ -23,6 +23,17 @@ public record MessageServerConfig(byte[] config) {
 
     /** This server's rules, as sent on join and again whenever the config file is reloaded. */
     public static MessageServerConfig fromLocalConfig() {
+        return fromLocalConfig(true, true, 0);
+    }
+
+    /**
+     * This server's rules for one player, as a host's rules hold for them ({@code network.MoveAccess}). With
+     * {@code moves} false the wall jump, the cling with its ledge grab, the double jump and the enchantments that give
+     * them are off, whatever the config says; with {@code doubleJump} false the double jump alone is off, the Double Jump
+     * enchantment's included; {@code granted} is how many jumps in the air the player has at least, enchantment or not
+     * (written last, so a client from before it reads the rest and leaves it).
+     */
+    public static MessageServerConfig fromLocalConfig(boolean moves, boolean doubleJump, int granted) {
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
         buffer.writeBoolean(ModConfig.allowReClinging);
@@ -33,20 +44,21 @@ public record MessageServerConfig(byte[] config) {
         buffer.writeDouble(ModConfig.elytraSpeedBoost);
         buffer.writeDouble(ModConfig.sprintSpeedBoost);
         buffer.writeBoolean(ModConfig.stepAssist);
-        buffer.writeBoolean(ModConfig.doubleJumpEnabled);
-        buffer.writeBoolean(ModConfig.wallJumpEnabled);
+        buffer.writeBoolean(moves && doubleJump && ModConfig.doubleJumpEnabled);
+        buffer.writeBoolean(moves && ModConfig.wallJumpEnabled);
         buffer.writeDouble(ModConfig.wallJumpHeight);
         buffer.writeInt(ModConfig.wallSlideDelay);
         buffer.writeInt(ModConfig.stopWallSlideDelay);
         buffer.writeInt(ModConfig.maxWallJumps);
         writeList(buffer, ModConfig.blockList);
         buffer.writeEnum(ModConfig.blockListMode);
-        buffer.writeBoolean(ModConfig.enableEnchantments);
+        buffer.writeBoolean(moves && ModConfig.enableEnchantments);
         buffer.writeBoolean(ModConfig.wallJumpEnchantment);
-        buffer.writeBoolean(ModConfig.doubleJumpEnchantment);
+        buffer.writeBoolean(doubleJump && ModConfig.doubleJumpEnchantment);
         buffer.writeBoolean(ModConfig.speedBoostEnchantment);
         buffer.writeDouble(ModConfig.speedBoostMultiplier);
-        buffer.writeBoolean(ModConfig.ledgeGrab);
+        buffer.writeBoolean(moves && ModConfig.ledgeGrab);
+        buffer.writeVarInt(moves && doubleJump ? Math.max(0, granted) : 0);
 
         // Send only the written bytes, not the buffer's whole backing array.
         byte[] data = new byte[buffer.writerIndex()];
@@ -85,6 +97,8 @@ public record MessageServerConfig(byte[] config) {
         ServerConfig.speedBoostEnchantment = buffer.readBoolean();
         ServerConfig.speedBoostMultiplier = buffer.readDouble();
         ServerConfig.ledgeGrab = buffer.readBoolean();
+        // a server from before grants wrote nothing more: nothing is granted
+        ServerConfig.grantedDoubleJumps = buffer.isReadable() ? Math.max(0, Math.min(8, buffer.readVarInt())) : 0;
     }
 
     private static void writeList(FriendlyByteBuf buffer, List<String> list) {

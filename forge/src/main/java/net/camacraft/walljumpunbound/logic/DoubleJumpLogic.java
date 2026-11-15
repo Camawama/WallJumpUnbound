@@ -23,7 +23,8 @@ public class DoubleJumpLogic {
     private static boolean jumpKey = false;
 
     public static void doDoubleJump(LocalPlayer pl) {
-        if ((!ServerConfig.enableEnchantments || !ServerConfig.doubleJumpEnchantment) && !ServerConfig.doubleJumpEnabled)
+        if ((!ServerConfig.enableEnchantments || !ServerConfig.doubleJumpEnchantment) && !ServerConfig.doubleJumpEnabled
+                && ServerConfig.grantedDoubleJumps <= 0)
             return;
         Vec3 pos = pl.position();
         Vec3 motion = pl.getDeltaMovement();
@@ -53,7 +54,12 @@ public class DoubleJumpLogic {
         }
     }
 
+    /** Jumps in the air: the config's and the enchantment's, or a host's grant when that is more. */
     private static int getMultiJumps(LocalPlayer pl) {
+        return Math.max(ownMultiJumps(pl), ServerConfig.grantedDoubleJumps);
+    }
+
+    private static int ownMultiJumps(LocalPlayer pl) {
         int jumpCount = 0;
         if (ServerConfig.doubleJumpEnabled) jumpCount += 1;
         if (!ServerConfig.enableEnchantments || !ServerConfig.doubleJumpEnchantment)

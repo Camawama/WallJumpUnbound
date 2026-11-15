@@ -38,12 +38,18 @@ public class ServerConfig {
     public static boolean speedBoostEnchantment = ModConfig.speedBoostEnchantment;
     public static double speedBoostMultiplier = ModConfig.speedBoostMultiplier;
     public static boolean ledgeGrab = ModConfig.ledgeGrab;
+    /**
+     * Jumps in the air a host grants this client's player at least, enchantment or not ({@code network.MoveAccess});
+     * 0 for none. Not a config option: it comes from the server alone and is 0 again on disconnect.
+     */
+    public static int grantedDoubleJumps = 0;
 
     public static void reset() {
         for (Field field : ServerConfig.class.getDeclaredFields()) {
-            if (field.getName().equals("LOGGER")) continue;
+            if (field.getName().equals("LOGGER") || field.getName().equals("grantedDoubleJumps")) continue;
             reset(field.getName());
         }
+        grantedDoubleJumps = 0;
     }
 
     public static void reset(String config) {

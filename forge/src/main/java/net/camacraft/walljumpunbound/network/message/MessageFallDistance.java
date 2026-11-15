@@ -22,7 +22,9 @@ public record MessageFallDistance(float fallDistance) {
 
     public static void handle(MessageFallDistance message, Supplier<NetworkEvent.Context> supplier) {
         Packets.handleServer(supplier, player -> {
-            if (!anySenderFeatureEnabled()) return;
+            // a host's grant of double jumps counts as the feature; a player refused the moves sends nothing honest
+            if (!anySenderFeatureEnabled() && net.camacraft.walljumpunbound.network.MoveAccess.granted(player) <= 0) return;
+            if (net.camacraft.walljumpunbound.network.MoveAccess.refused(player)) return;
             // a value that isn't finite leaves the server's own count alone
             player.fallDistance = NetValidate.finiteClamp(message.fallDistance, 0.0F, MAX_FALL_DISTANCE, player.fallDistance);
         });

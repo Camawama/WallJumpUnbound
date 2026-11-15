@@ -40,6 +40,9 @@ public class WallJumpMod {
         // A live edit: hand the new rules to everyone already connected. On the
         // server thread, since the file watcher calls this from its own.
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server != null) server.execute(() -> PacketHandler.sendToAll(MessageServerConfig.fromLocalConfig()));
+        if (server != null) server.execute(() -> {
+            PacketHandler.sendToAll(MessageServerConfig.fromLocalConfig());
+            net.camacraft.walljumpunbound.network.MoveAccess.resync(); // those a host refuses the moves are told again
+        });
     }
 }
