@@ -11,6 +11,8 @@
   "client": [
     "AbstractClientPlayerMixin",
     "ClientLevelMixin",
+    "HumanoidModelMixin",
+    "ItemInHandRendererMixin",
     "LocalPlayerMixin",
     "PlayerModelMixin",
     "PlayerRendererMixin"

@@ -53,6 +53,10 @@ public record MessageWallCling(boolean clinging, Direction wall, float yaw, bool
             // grip is also where a long fall is paid for, from the server's own
             // record of the fall, read before the client's cling resets it.
             if (player instanceof WallClingPosture posture) {
+                // a fresh grip on the wall just jumped from, past what the rules and the player's boots allow, is not
+                // honoured: no pose for the others, no catch, and the wall jump after it is not either
+                if (message.clinging && !posture.walljumpunbound$isWallClingPosture()
+                        && !net.camacraft.walljumpunbound.network.ReClingCheck.grip(player, message.wall, message.ship)) return;
                 if (message.clinging && !posture.walljumpunbound$isWallClingPosture()) ModDamageTypes.hurtForCatchingWall(player);
                 posture.walljumpunbound$setWallClingPosture(message.clinging, message.ledge);
             }

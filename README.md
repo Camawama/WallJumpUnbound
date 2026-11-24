@@ -18,7 +18,7 @@ WallJump Unbound is a fork of [Wall-Jump TXF](https://github.com/jahirxtrap/wall
 
 <strong>Steep Assist:</strong> Walk up steps even while airborne, also jump over fences
 
-<strong>Enchantments:</strong> Wall Jump, Double Jump and Speed Boost, each switchable (`enableEnchantments`, off by default)
+<strong>Enchantments:</strong> Wall Jump, Double Jump and Speed Boost, each switchable (`enableEnchantments`, off by default, gates those three), and Re-cling (I to III: catch the wall you just jumped off again, once per level, before you land), on by default with its own switch (`reClingEnchantment`)
 
 <strong>Valkyrien Skies support:</strong> All of the above works on VS ship walls, including moving and rotating ships
 

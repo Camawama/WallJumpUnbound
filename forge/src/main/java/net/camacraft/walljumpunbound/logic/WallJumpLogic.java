@@ -154,6 +154,8 @@ public class WallJumpLogic {
     private static double slideScuff;
     private static EnumSet<Direction> walls = EnumSet.noneOf(Direction.class);
     private static EnumSet<Direction> staleWalls = EnumSet.noneOf(Direction.class);
+    // clings on the wall just jumped from since the ground (Re-cling's count; the server keeps its own)
+    private static int reClingsUsed;
     // Whether this tick's probes found a wall in reach. Kept here rather
     // than written into vanilla's horizontalCollision, which other mods read
     // as "actually ran into something" (Grapple Unbound starts a wall-run off it,
@@ -344,6 +346,7 @@ public class WallJumpLogic {
             clingDirection = null;
             clingAtLedge = false;
             staleWalls.clear();
+            reClingsUsed = 0;
             wallJumpCount = 0;
             FRAME_WALLS.clear();
             VSCompat.clearShipWalls();
@@ -389,6 +392,7 @@ public class WallJumpLogic {
                     pl.yRotO = pl.getYRot();
                 }
 
+                if (reClinging(pl)) reClingsUsed++;
                 ticksWallClinged = 1;
                 // In zero gravity nothing ever lands, so a fresh grip counts as a fresh start.
                 if (weightless) wallJumpCount = 0;
@@ -896,8 +900,19 @@ public class WallJumpLogic {
             if (ContraptionCompat.floorWithin(pl.level(), below, gravityFrame.up())) return "contraption deck within reach below";
         }
         if (!ServerConfig.onFallWallCling && velocity.y < -0.8) return "falling too fast";
-        if (ServerConfig.allowReClinging || height(pl) < lastJumpHeight - 1) return null;
-        return staleWalls.containsAll(walls) ? "the wall just jumped from" : null;
+        if (!reClinging(pl)) return null;
+        return reClingsUsed < ReClings.allowance(pl, ServerConfig.allowReClinging,
+                ServerConfig.reClingEnchantment, ServerConfig.maxReClingLevel)
+                ? null : "the wall just jumped from";
+    }
+
+    /**
+     * Whether a cling now would be on the wall just jumped from (every wall in reach is one jumped from, and the
+     * player is not yet a block below that jump): what re-clinging, or Re-cling's levels, must allow.
+     */
+    private static boolean reClinging(LocalPlayer pl) {
+        if (ServerConfig.allowReClinging || height(pl) < lastJumpHeight - 1) return false;
+        return staleWalls.containsAll(walls);
     }
 
     private static double bodyScale(LocalPlayer pl) {

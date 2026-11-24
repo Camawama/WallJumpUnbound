@@ -23,6 +23,8 @@ public class WallJumpMod {
         // One file for both sides: config/walljumpunbound.toml. The server's
         // copy of the rules reaches clients over the mod's own sync on join.
         ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.COMMON, ModConfig.SPEC, MODID + ".toml");
+        // first, so a file still on an old default is moved forward before onConfigLoading reads it
+        ModConfig.registerMigrations(bus);
         bus.addListener(WallJumpMod::onConfigLoading);
         bus.addListener(WallJumpMod::onConfigReloading);
 

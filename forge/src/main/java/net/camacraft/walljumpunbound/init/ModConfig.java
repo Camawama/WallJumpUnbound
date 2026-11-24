@@ -1,6 +1,8 @@
 package net.camacraft.walljumpunbound.init;
 
+import net.camacraft.camafy.config.ConfigMigrator;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.common.ForgeConfigSpec.BooleanValue;
 import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
@@ -34,6 +36,11 @@ public final class ModConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger("walljumpunbound");
 
     public enum BlockListMode {DISABLED, BLACKLIST, WHITELIST}
+
+    /** Bumped when a shipped default changes; {@link #registerMigrations} moves older files forward. */
+    public static final int CURRENT_CONFIG_VERSION = 1;
+    /** How long a cling holds before the slide starts, by default (it was 15 before 1.1.3). */
+    public static final int DEFAULT_WALL_SLIDE_DELAY = 4;
 
     // ---------------------------------------------------------------- wall jump
     public static boolean wallJumpEnabled;
@@ -78,6 +85,8 @@ public final class ModConfig {
     public static boolean doubleJumpEnchantment;
     public static boolean speedBoostEnchantment;
     public static double speedBoostMultiplier;
+    public static boolean reClingEnchantment;
+    public static int maxReClingLevel;
 
     private static final Values VALUES;
     public static final ForgeConfigSpec SPEC;
@@ -90,6 +99,21 @@ public final class ModConfig {
     }
 
     private ModConfig() {
+    }
+
+    /**
+     * Moves a file still holding an old default to the new one when it loads (a value someone changed never
+     * matches the old default and is left alone). Registered before the mod's own loading listener, so
+     * {@link #load} already reads the moved values; Forge saves the file right after the loading event.
+     */
+    public static void registerMigrations(IEventBus modBus) {
+        ConfigMigrator.register(modBus, SPEC, VALUES.configVersion, CURRENT_CONFIG_VERSION, from -> {
+            if (from < 1) {
+                // 1.1.3: no second cling on the wall just jumped from, and the slide starts a moment after the grip
+                ConfigMigrator.move(VALUES.allowReClinging, true, false);
+                ConfigMigrator.move(VALUES.wallSlideDelay, 15, DEFAULT_WALL_SLIDE_DELAY);
+            }
+        });
     }
 
     /** Copies the file's values into the static fields. Called once the file has loaded, and again whenever it changes. */
@@ -148,6 +172,8 @@ public final class ModConfig {
         doubleJumpEnchantment = value(VALUES.doubleJumpEnchantment, loaded);
         speedBoostEnchantment = value(VALUES.speedBoostEnchantment, loaded);
         speedBoostMultiplier = value(VALUES.speedBoostMultiplier, loaded);
+        reClingEnchantment = value(VALUES.reClingEnchantment, loaded);
+        maxReClingLevel = value(VALUES.maxReClingLevel, loaded);
     }
 
     /** The spec: every option with its comment, default and range, in the order the file shows them. */
@@ -194,6 +220,10 @@ public final class ModConfig {
         final BooleanValue doubleJumpEnchantment;
         final BooleanValue speedBoostEnchantment;
         final DoubleValue speedBoostMultiplier;
+        final BooleanValue reClingEnchantment;
+        final IntValue maxReClingLevel;
+
+        final IntValue configVersion;
 
         Values(ForgeConfigSpec.Builder b) {
             b.comment("Wall clinging and wall jumping.",
@@ -214,8 +244,10 @@ public final class ModConfig {
                     "Sprinting costs about 0.6 a second. Run out of food and your grip gives out. 0 is off.")
                     .defineInRange("exhaustionLedgeGrab", 1.0, 0.0, 20.0);
             allowReClinging = b.comment("[server] Cling again to the wall you just jumped off.",
-                    "When off, you must first fall a block below your jump or reach a different wall.")
-                    .define("allowReClinging", true);
+                    "When off (the default), you must first fall a block below your jump or reach a different wall,",
+                    "so one wall cannot be climbed by jumping off it and catching it again; boots with Re-cling allow",
+                    "one such cling per level before you touch the ground (see [enchantments]).")
+                    .define("allowReClinging", false);
             onFallWallCling = b.comment("[server] Catch a wall while falling faster than 0.8 blocks a tick.",
                     "When off, a fast fall cannot be stopped by clinging.")
                     .define("onFallWallCling", true);
@@ -223,8 +255,9 @@ public final class ModConfig {
                     "Skipped on Valkyrien Skies ships, whose walls are rarely on a compass point.")
                     .define("autoRotation", false);
             wallSlideDelay = b.comment("[server] Ticks a cling holds before you start sliding down (20 ticks = 1 second).",
+                    "The default 4 catches you for a moment and then lets you slide; 15 was the default before 1.1.3.",
                     "Hanging from a ledge never slides.")
-                    .defineInRange("wallSlideDelay", 15, 0, Integer.MAX_VALUE);
+                    .defineInRange("wallSlideDelay", DEFAULT_WALL_SLIDE_DELAY, 0, Integer.MAX_VALUE);
             stopWallSlideDelay = b.comment("[server] Ticks of sliding before your grip gives out and you drop. 72000 is as good as unlimited.")
                     .defineInRange("stopWallSlideDelay", 72000, 0, Integer.MAX_VALUE);
             ledgeGrab = b.comment("[server] Grab the top of a wall that is within arm's reach.",
@@ -305,10 +338,11 @@ public final class ModConfig {
                     .define("stickToMovingContraptions", true);
             b.pop();
 
-            b.comment("The mod's enchantments. The three switches after the first only matter while enableEnchantments is on.")
+            b.comment("The mod's enchantments. Wall Jump, Double Jump and Speed Boost stand in for the moves the [wallJump] and [movement]",
+                    "switches give everyone, and are gated by enableEnchantments; Re-cling has its own switch alone.")
                     .push("enchantments");
-            enableEnchantments = b.comment("[server] Master switch. When off, none of the mod's enchantments turn up in enchanting tables or trades.",
-                    "Items already enchanted keep working.")
+            enableEnchantments = b.comment("[server] Master switch for Wall Jump, Double Jump and Speed Boost. When off, those three turn up in no",
+                    "enchanting table or trade, and boots that already have them give nothing. Re-cling does not follow it.")
                     .define("enableEnchantments", false);
             wallJumpEnchantment = b.comment("[server] Boots enchantment granting wall clinging and jumping to its wearer.",
                     "Only matters when wallJumpEnabled is off.")
@@ -319,6 +353,20 @@ public final class ModConfig {
                     .define("speedBoostEnchantment", true);
             speedBoostMultiplier = b.comment("[server] How much speed each level of Speed Boost adds.")
                     .defineInRange("speedBoostMultiplier", 0.5, 0.25, 1.0);
+            reClingEnchantment = b.comment("[server] Boots enchantment, I to III: each level is one more cling on the wall you just jumped off",
+                    "before you touch the ground again. Only matters while allowReClinging is off. Its own switch alone: on the",
+                    "enchanting table, in trades and working whenever this is true, whatever enableEnchantments says.")
+                    .define("reClingEnchantment", true);
+            maxReClingLevel = b.comment("[server] The highest level of Re-cling that counts: boots with more give this many. 0 turns it off.")
+                    .defineInRange("maxReClingLevel", 3, 0, 3);
+            b.pop();
+
+            b.push("meta");
+            // 0 by default on purpose: a file written before this key existed gains it at 0, which marks it as never
+            // migrated. A fresh file migrates as a no-op and is stamped current.
+            configVersion = b.comment("Internal: which generation of shipped defaults this file has seen. Settings nobody changed",
+                    "follow the mod's new defaults; settings you changed are left alone. Do not edit.")
+                    .defineInRange("configVersion", 0, 0, Integer.MAX_VALUE);
             b.pop();
         }
     }

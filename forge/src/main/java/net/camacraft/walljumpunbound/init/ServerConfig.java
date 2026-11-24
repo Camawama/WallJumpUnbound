@@ -38,6 +38,8 @@ public class ServerConfig {
     public static boolean speedBoostEnchantment = ModConfig.speedBoostEnchantment;
     public static double speedBoostMultiplier = ModConfig.speedBoostMultiplier;
     public static boolean ledgeGrab = ModConfig.ledgeGrab;
+    public static boolean reClingEnchantment = ModConfig.reClingEnchantment;
+    public static int maxReClingLevel = ModConfig.maxReClingLevel;
     /**
      * Jumps in the air a host grants this client's player at least, enchantment or not ({@code network.MoveAccess});
      * 0 for none. Not a config option: it comes from the server alone and is 0 again on disconnect.

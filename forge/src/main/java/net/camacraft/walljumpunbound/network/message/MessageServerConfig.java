@@ -59,6 +59,9 @@ public record MessageServerConfig(byte[] config) {
         buffer.writeDouble(ModConfig.speedBoostMultiplier);
         buffer.writeBoolean(moves && ModConfig.ledgeGrab);
         buffer.writeVarInt(moves && doubleJump ? Math.max(0, granted) : 0);
+        // 1.1.3, after the grant for the same reason: Re-cling
+        buffer.writeBoolean(ModConfig.reClingEnchantment);
+        buffer.writeVarInt(Math.max(0, ModConfig.maxReClingLevel));
 
         // Send only the written bytes, not the buffer's whole backing array.
         byte[] data = new byte[buffer.writerIndex()];
@@ -99,6 +102,9 @@ public record MessageServerConfig(byte[] config) {
         ServerConfig.ledgeGrab = buffer.readBoolean();
         // a server from before grants wrote nothing more: nothing is granted
         ServerConfig.grantedDoubleJumps = buffer.isReadable() ? Math.max(0, Math.min(8, buffer.readVarInt())) : 0;
+        // a server from before Re-cling wrote nothing more: the enchantment counts for nothing there
+        ServerConfig.reClingEnchantment = buffer.isReadable() && buffer.readBoolean();
+        ServerConfig.maxReClingLevel = buffer.isReadable() ? Math.max(0, Math.min(3, buffer.readVarInt())) : 0;
     }
 
     private static void writeList(FriendlyByteBuf buffer, List<String> list) {

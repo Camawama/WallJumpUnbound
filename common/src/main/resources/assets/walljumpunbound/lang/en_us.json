@@ -4,9 +4,11 @@
   "enchantment.walljumpunbound.wall_jump": "Wall Jump",
   "enchantment.walljumpunbound.double_jump": "Double Jump",
   "enchantment.walljumpunbound.speed_boost": "Speed Boost",
+  "enchantment.walljumpunbound.recling": "Re-cling",
   "enchantment.walljumpunbound.wall_jump.desc": "Jump from wall to wall",
   "enchantment.walljumpunbound.double_jump.desc": "Jump in mid-air to double jump",
   "enchantment.walljumpunbound.speed_boost.desc": "Boosts your speed while sprinting",
+  "enchantment.walljumpunbound.recling.desc": "Catch the wall you just jumped off again, once per level, before you land",
   "death.attack.walljumpunbound.wall_cling": "%1$s wrenched their arms catching a wall",
   "death.attack.walljumpunbound.wall_cling.player": "%1$s wrenched their arms catching a wall while fleeing %2$s"
 }

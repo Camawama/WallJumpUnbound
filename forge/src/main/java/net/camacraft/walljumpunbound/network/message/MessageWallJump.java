@@ -21,6 +21,7 @@ public record MessageWallJump(boolean didWallJump) {
     public static void handle(MessageWallJump message, Supplier<NetworkEvent.Context> supplier) {
         Packets.handleServer(supplier, player -> {
             if (net.camacraft.walljumpunbound.network.MoveAccess.refused(player)) return; // a host's rules have the moves off for this player
+            if (!net.camacraft.walljumpunbound.network.ReClingCheck.wallJumped(player)) return; // off a cling that was not honoured
             boolean wallJumpEnabled = ModConfig.wallJumpEnabled || (ModConfig.enableEnchantments && ModConfig.wallJumpEnchantment);
             if (message.didWallJump && wallJumpEnabled) {
                 player.resetFallDistance();

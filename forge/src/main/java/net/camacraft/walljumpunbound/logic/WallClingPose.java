@@ -62,7 +62,24 @@ public final class WallClingPose {
     private static final float ARM_Y = 2.0F;
     private static final float LEG_Y = 12.0F;
 
+    /**
+     * Set while the first-person hands are drawn ({@code ItemInHandRenderer.renderHandsWithItems}), on the render
+     * thread. The first-person arm is the player model's, posed through {@code PlayerModel.setupAnim}, so the cling
+     * pose moves it; whatever another mod draws over that arm from a model of its own (the Aether's gloves, its
+     * Shield of Repulsion, Deep Aether's Wind Shield: a plain {@code HumanoidModel} given the same setupAnim call)
+     * is posed the same way while this is set, so it stays on the arm instead of hanging where the arm was.
+     */
+    private static boolean firstPersonHands;
+
     private WallClingPose() {
+    }
+
+    public static void setFirstPersonHands(boolean drawing) {
+        firstPersonHands = drawing;
+    }
+
+    public static boolean inFirstPersonHands() {
+        return firstPersonHands;
     }
 
     public static float weight(LivingEntity entity, float partialTick) {
